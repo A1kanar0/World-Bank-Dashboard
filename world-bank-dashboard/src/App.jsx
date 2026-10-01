@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import KpiCard from "./components/KpiCard";
-import YearCounter from "./components/YearCounter";
+import Counter from "./components/Counter.jsx";
 import ThemeToggle from "./components/ThemeToggle";
 import CountryFilterList from "./components/CountryFilterList";
 import { initialKpis, mockCountries } from "./mockData";
@@ -49,7 +49,12 @@ export default function App() {
               />
           ))}
 
-          <YearCounter initialYear={2023} />
+          <Counter
+              title="Рік аналізу"
+              initialValue={2023}
+              min={2000}
+              max={2026}
+          />
 
           <CountryFilterList countries={mockCountries} />
         </main>
