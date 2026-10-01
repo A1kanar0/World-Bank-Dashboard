@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState} from "react";
 import KpiCard from "./components/KpiCard";
-import YearCounter from "./components/YearCounter";
+import Counter from "./components/Counter.jsx";
 import ThemeToggle from "./components/ThemeToggle";
 import CountryFilterList from "./components/CountryFilterList";
 import { initialKpis, mockCountries } from "./mockData";
@@ -8,16 +8,9 @@ import { initialKpis, mockCountries } from "./mockData";
 export default function App() {
   const [isDark, setIsDark] = useState(true);
 
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDark]);
 
   return (
-      <div className="min-h-screen bg-gray-100 dark:bg-[#0D0F17] text-gray-900 dark:text-white p-6 font-sans transition-colors duration-300">
+      <div className={`min-h-screen ${isDark ? "dark" : ""} bg-gray-100 dark:bg-[#0D0F17] text-gray-900 dark:text-white p-6 font-sans transition-colors duration-300`}>
         <header className="max-w-6xl mx-auto flex items-center justify-between mb-8 pb-4 border-b border-gray-200 dark:border-gray-800">
           <div>
             <div className="flex items-center gap-2">
@@ -49,7 +42,12 @@ export default function App() {
               />
           ))}
 
-          <YearCounter initialYear={2023} />
+          <Counter
+              title="Рік аналізу"
+              initialValue={2023}
+              min={2000}
+              max={2026}
+          />
 
           <CountryFilterList countries={mockCountries} />
         </main>
