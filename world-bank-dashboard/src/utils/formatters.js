@@ -1,24 +1,34 @@
 export function formatGdp(value) {
+    if (value === undefined || value === null || isNaN(value)) return "—";
     if (value >= 1e12) {
         return `$${(value / 1e12).toFixed(2)} Трлн`;
     }
     if (value >= 1e9) {
         return `$${(value / 1e9).toFixed(1)} Млрд`;
     }
-    return `$${value.toLocaleString()}`;
+    return `$${Number(value).toLocaleString()}`;
 }
 
 export function formatPercent(value) {
-    const prefix = value > 0 ? "+" : "";
-    return `${prefix}${value.toFixed(1)}%`;
+    if (value === undefined || value === null || isNaN(value)) return "—";
+    const num = Number(value);
+    const prefix = num > 0 ? "+" : "";
+    return `${prefix}${num.toFixed(1)}%`;
 }
 
 export function formatPopulation(value) {
-    if (value >= 1e9) {
-        return `${(value / 1e9).toFixed(2)} Млрд`;
+    if (value === undefined || value === null || isNaN(value)) return "—";
+    const num = Number(value);
+    if (num >= 1e9) {
+        return `${(num / 1e9).toFixed(2)} Млрд`;
     }
-    if (value >= 1e6) {
-        return `${(value / 1e6).toFixed(1)} Млн`;
+    if (num >= 1e6) {
+        return `${(num / 1e6).toFixed(1)} Млн`;
     }
-    return value.toLocaleString();
+    return num.toLocaleString();
+}
+
+export function formatNumber(value) {
+    if (value === undefined || value === null || isNaN(value)) return "0";
+    return Number(value).toLocaleString();
 }

@@ -1,12 +1,12 @@
 export default function CountryControls({
-    regions,
-    selectedRegion,
-    onRegionChange,
-    sortField,
-    onSortFieldChange,
-    sortOrder,
-    onSortOrderChange,
-}) {
+                                            regions,
+                                            selectedRegion,
+                                            onRegionChange,
+                                            sortField,
+                                            onSortFieldChange,
+                                            sortOrder,
+                                            onSortOrderChange,
+                                        }) {
     return (
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
             <h3 className="text-base font-bold text-gray-900 dark:text-white">
@@ -37,9 +37,7 @@ export default function CountryControls({
                         className="p-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#121522] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                         <option value="name">Назва країни</option>
-                        <option value="gdp">ВВП</option>
-                        <option value="unemployment">Безробіття</option>
-                        <option value="lifeExpectancy">Тривалість життя</option>
+                        <option value="value">ВВП</option>
                     </select>
                 </div>
 
