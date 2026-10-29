@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import KpiCard from "./components/KpiCard";
 import Counter from "./components/Counter";
 import ThemeToggle from "./components/ThemeToggle";
@@ -8,6 +8,16 @@ export default function App() {
   const [isDark, setIsDark] = useState(true);
   const [selectedYear, setSelectedYear] = useState(2022);
   const [kpis, setKpis] = useState([]);
+
+  // 🟢 Обгортаємо оновлення KPI в useCallback і перевіряємо, чи змінилися дані
+  const handleKpiUpdate = useCallback((newKpis) => {
+    setKpis((prev) => {
+      if (JSON.stringify(prev) === JSON.stringify(newKpis)) {
+        return prev;
+      }
+      return newKpis;
+    });
+  }, []);
 
   return (
       <div className={`min-h-screen ${isDark ? "dark" : ""} bg-gray-100 dark:bg-[#0D0F17] text-gray-900 dark:text-white p-6 font-sans transition-colors duration-300`}>
@@ -50,7 +60,8 @@ export default function App() {
               onChange={(newYear) => setSelectedYear(newYear)}
           />
 
-          <CountryContainer year={selectedYear} onKpiUpdate={setKpis} />
+          {/* 🟢 Передаємо стабільну функцію замість безпосереднього setKpis */}
+          <CountryContainer year={selectedYear} onKpiUpdate={handleKpiUpdate} />
         </main>
       </div>
   );
