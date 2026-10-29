@@ -1,13 +1,13 @@
-import { useState} from "react";
+import { useState } from "react";
 import KpiCard from "./components/KpiCard";
-import Counter from "./components/Counter.jsx";
+import Counter from "./components/Counter";
 import ThemeToggle from "./components/ThemeToggle";
-import CountryFilterList from "./components/CountryFilterList";
-import { initialKpis, mockCountries } from "./mockData";
+import CountryContainer from "./components/CountryFilterList/CountryContainer";
 
 export default function App() {
   const [isDark, setIsDark] = useState(true);
-
+  const [selectedYear, setSelectedYear] = useState(2022);
+  const [kpis, setKpis] = useState([]);
 
   return (
       <div className={`min-h-screen ${isDark ? "dark" : ""} bg-gray-100 dark:bg-[#0D0F17] text-gray-900 dark:text-white p-6 font-sans transition-colors duration-300`}>
@@ -18,7 +18,7 @@ export default function App() {
               Dashboard
             </span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium">
-              World Bank
+              World Bank API
             </span>
             </div>
             <h1 className="text-xl font-bold mt-1 text-gray-900 dark:text-white">
@@ -32,7 +32,7 @@ export default function App() {
         </header>
 
         <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-5">
-          {initialKpis.map((kpi) => (
+          {kpis.map((kpi) => (
               <KpiCard
                   key={kpi.id}
                   title={kpi.title}
@@ -44,12 +44,13 @@ export default function App() {
 
           <Counter
               title="Рік аналізу"
-              initialValue={2023}
+              initialValue={selectedYear}
               min={2000}
-              max={2026}
+              max={2023}
+              onChange={(newYear) => setSelectedYear(newYear)}
           />
 
-          <CountryFilterList countries={mockCountries} />
+          <CountryContainer year={selectedYear} onKpiUpdate={setKpis} />
         </main>
       </div>
   );

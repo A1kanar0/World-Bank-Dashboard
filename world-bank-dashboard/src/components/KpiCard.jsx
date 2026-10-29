@@ -1,4 +1,4 @@
-import { formatGdp, formatPopulation, formatPercent } from "../utils/formatters";
+import { formatGdp, formatPopulation, formatPercent, formatNumber } from "../utils/formatters";
 
 export default function KpiCard({ title, value, change, type }) {
     const isPositive = change >= 0;
@@ -6,6 +6,7 @@ export default function KpiCard({ title, value, change, type }) {
     const renderFormattedValue = () => {
         if (type === "currency") return formatGdp(value);
         if (type === "population") return formatPopulation(value);
+        if (type === "number") return formatNumber(value);
         return `${value} р.`;
     };
 
