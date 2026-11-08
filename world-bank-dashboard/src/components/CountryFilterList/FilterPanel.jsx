@@ -1,39 +1,46 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useDebounce } from "../../hooks/useDebounce";
+import { DEFAULT_FILTERS } from "../../constants/filterConstants";
 
-const DEFAULT_VALUES = {
-    searchQuery: "",
-    selectedRegion: "Всі",
-    sortField: "value",
-    sortOrder: "desc",
-};
-
-export default function FilterPanel({ regions = [], onFilterChange }) {
+export default function FilterPanel({ countries = [], filters = DEFAULT_FILTERS, onFilterChange }) {
     const { register, watch, reset } = useForm({
-        defaultValues: DEFAULT_VALUES,
+        defaultValues: filters,
     });
 
-    useEffect(() => {
-        const subscription = watch((value) => {
-            if (onFilterChange) {
-                onFilterChange(value);
-            }
-        });
+    const formValues = watch();
+    const debouncedSearchQuery = useDebounce(formValues.searchQuery, 400);
 
-        return () => subscription.unsubscribe();
-    }, [watch, onFilterChange]);
+    const regions = useMemo(() => {
+        const uniqueRegions = Array.from(
+            new Set(
+                countries
+                    .map((c) => c.region)
+                    .filter((r) => r && r !== "NA" && r !== "Aggregates" && r !== "Інші")
+            )
+        ).sort();
+
+        return [DEFAULT_FILTERS.selectedRegion, ...uniqueRegions];
+    }, [countries]);
+
+    useEffect(() => {
+        if (!onFilterChange) return;
+
+        onFilterChange((prev) => ({
+            ...prev,
+            ...formValues,
+            searchQuery: debouncedSearchQuery,
+        }));
+    }, [debouncedSearchQuery, formValues.selectedRegion, formValues.sortField, formValues.sortOrder, onFilterChange]);
 
     const handleReset = () => {
-        reset(DEFAULT_VALUES);
-        if (onFilterChange) {
-            onFilterChange(DEFAULT_VALUES);
-        }
+        reset(DEFAULT_FILTERS);
+        if (onFilterChange) onFilterChange(DEFAULT_FILTERS);
     };
 
     return (
         <div className="p-4 bg-gray-50 dark:bg-[#121522] rounded-xl border border-gray-200 dark:border-gray-800 mb-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
-                {/* 1. Пошук */}
                 <div className="flex-1 min-w-[200px]">
                     <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
                         Пошук за назвою
@@ -46,16 +53,15 @@ export default function FilterPanel({ regions = [], onFilterChange }) {
                     />
                 </div>
 
-                {/* 2. Регіон */}
-                <div className="min-w-[150px]">
+                <div className="min-w-[180px]">
                     <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
                         Регіон
                     </label>
                     <select
                         {...register("selectedRegion")}
-                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
-                        {(regions || []).map((region) => (
+                        {regions.map((region) => (
                             <option key={region} value={region}>
                                 {region}
                             </option>
@@ -63,35 +69,32 @@ export default function FilterPanel({ regions = [], onFilterChange }) {
                     </select>
                 </div>
 
-                {/* 3. Поле сортування */}
                 <div className="min-w-[150px]">
                     <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
                         Сортувати за
                     </label>
                     <select
                         {...register("sortField")}
-                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
                         <option value="name">Назва країни</option>
                         <option value="value">ВВП USD</option>
                     </select>
                 </div>
 
-                {/* 4. Напрямок */}
                 <div className="min-w-[130px]">
                     <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
                         Напрямок
                     </label>
                     <select
                         {...register("sortOrder")}
-                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
                         <option value="asc">⬆️ За зростанням</option>
                         <option value="desc">⬇️ За спаданням</option>
                     </select>
                 </div>
 
-                {/* Кнопка скидання */}
                 <div className="self-end">
                     <button
                         type="button"

@@ -1,37 +1,32 @@
 import { useState, useEffect } from "react";
 
-/**
- * @param {Function} fetchFunction - Асинхронна функція для запиту
- * @param {Array|Object} params - Параметри запиту, при зміні яких виконується перезапит
- */
-export function useFetch(fetchFunction, params = null) {
+export function useFetch(fetchCallback, deps = []) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        let isSubscribed = true;
+        const controller = new AbortController();
+
         setLoading(true);
         setError(null);
 
-        fetchFunction(params)
+        fetchCallback(controller.signal)
             .then((result) => {
-                if (isSubscribed) {
-                    setData(result);
-                    setLoading(false);
-                }
+                setData(result);
+                setLoading(false);
             })
             .catch((err) => {
-                if (isSubscribed) {
-                    setError(err.message || "Помилка при завантаженні даних");
+                if (err.name !== "AbortError") {
+                    setError(err.message || "Невідома помилка мережі");
                     setLoading(false);
                 }
             });
 
         return () => {
-            isSubscribed = false;
+            controller.abort();
         };
-    }, [fetchFunction, JSON.stringify(params)]);
+    }, deps);
 
     return { data, loading, error };
 }

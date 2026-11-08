@@ -9,7 +9,6 @@ export default function App() {
   const [selectedYear, setSelectedYear] = useState(2022);
   const [kpis, setKpis] = useState([]);
 
-  // 🟢 Обгортаємо оновлення KPI в useCallback і перевіряємо, чи змінилися дані
   const handleKpiUpdate = useCallback((newKpis) => {
     setKpis((prev) => {
       if (JSON.stringify(prev) === JSON.stringify(newKpis)) {
@@ -44,7 +43,7 @@ export default function App() {
         <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-5">
           {kpis.map((kpi) => (
               <KpiCard
-                  key={kpi.id}
+                  key={kpi.key}
                   title={kpi.title}
                   value={kpi.value}
                   change={kpi.change}
@@ -60,7 +59,6 @@ export default function App() {
               onChange={(newYear) => setSelectedYear(newYear)}
           />
 
-          {/* 🟢 Передаємо стабільну функцію замість безпосереднього setKpis */}
           <CountryContainer year={selectedYear} onKpiUpdate={handleKpiUpdate} />
         </main>
       </div>

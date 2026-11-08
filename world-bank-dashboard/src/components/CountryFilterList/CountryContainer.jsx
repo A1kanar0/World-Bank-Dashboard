@@ -1,81 +1,97 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fetchWorldBankData } from "../../services/worldBankApi";
 import { useFetch } from "../../hooks/useFetch";
-import { useDebounce } from "../../hooks/useDebounce";
+import { DEFAULT_FILTERS } from "../../constants/filterConstants";
 import FilterPanel from "./FilterPanel";
 import CountryTable from "./CountryTable";
 
 export default function CountryContainer({ year = 2022, onKpiUpdate }) {
-    const [filters, setFilters] = useState({
-        searchQuery: "",
-        selectedRegion: "Всі",
-        sortField: "value",
-        sortOrder: "desc",
-    });
+    const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
-    const debouncedSearchQuery = useDebounce(filters.searchQuery, 400);
-
-    const fetchApi = useCallback(
-        () => fetchWorldBankData("NY.GDP.MKTP.CD", year),
+    const { data: rawCountries, loading, error } = useFetch(
+        (signal) => fetchWorldBankData("NY.GDP.MKTP.CD", year, signal),
         [year]
     );
 
-    const { data: rawCountries, loading, error } = useFetch(fetchApi, year);
-    const countries = rawCountries || [];
-
-    const regions = useMemo(
-        () => ["Всі", ...new Set(countries.map((c) => c.region).filter(Boolean))],
-        [countries]
+    const { data: rawPrevCountries } = useFetch(
+        (signal) => fetchWorldBankData("NY.GDP.MKTP.CD", year - 1, signal),
+        [year]
     );
 
-    const filteredCountries = useMemo(() => {
-        return countries.filter((c) => {
-            const matchesSearch = c.name
-                .toLowerCase()
-                .includes(debouncedSearchQuery.toLowerCase());
-            const matchesRegion =
-                filters.selectedRegion === "Всі" || c.region === filters.selectedRegion;
+    const countries = useMemo(() => rawCountries || [], [rawCountries]);
+    const prevCountries = useMemo(() => rawPrevCountries || [], [rawPrevCountries]);
 
+    const processedCountries = useMemo(() => {
+        const query = (filters.searchQuery || "").trim().toLowerCase();
+        const selectedReg = (filters.selectedRegion || DEFAULT_FILTERS.selectedRegion).trim();
+
+        const filtered = countries.filter((c) => {
+            const matchesSearch = !query || c.name.toLowerCase().includes(query);
+            const matchesRegion = selectedReg === DEFAULT_FILTERS.selectedRegion || c.region === selectedReg;
             return matchesSearch && matchesRegion;
         });
-    }, [countries, debouncedSearchQuery, filters.selectedRegion]);
 
-    const sortedCountries = useMemo(() => {
-        return [...filteredCountries].sort((a, b) => {
-            const field = filters.sortField;
-            let aVal = a[field];
-            let bVal = b[field];
+        return [...filtered].sort((a, b) => {
+            let aVal = a[filters.sortField];
+            let bVal = b[filters.sortField];
 
             if (typeof aVal === "string") {
                 const res = aVal.localeCompare(bVal);
                 return filters.sortOrder === "asc" ? res : -res;
             }
 
-            if (aVal < bVal) return filters.sortOrder === "asc" ? -1 : 1;
-            if (aVal > bVal) return filters.sortOrder === "asc" ? 1 : -1;
-            return 0;
+            return filters.sortOrder === "asc" ? aVal - bVal : bVal - aVal;
         });
-    }, [filteredCountries, filters.sortField, filters.sortOrder]);
+    }, [countries, filters]);
 
-    const handleFilterChange = useCallback((newFilters) => {
-        setFilters((prev) => {
-            if (JSON.stringify(prev) === JSON.stringify(newFilters)) return prev;
-            return { ...prev, ...newFilters };
-        });
-    }, []);
+    const kpis = useMemo(() => {
+        const totalGdp = processedCountries.reduce((acc, c) => acc + c.value, 0);
+        const count = processedCountries.length;
+        const avgGdp = count ? totalGdp / count : 0;
+
+        const prevTotalGdp = prevCountries.reduce((acc, c) => acc + c.value, 0);
+        const prevAvgGdp = prevCountries.length ? prevTotalGdp / prevCountries.length : 0;
+
+        const isAllSelected = count > 0 && count === countries.length;
+
+        let totalGdpChange = 0;
+        let avgGdpChange = 0;
+
+        if (isAllSelected && prevTotalGdp > 0) {
+            totalGdpChange = Number((((totalGdp - prevTotalGdp) / prevTotalGdp) * 100).toFixed(1));
+            avgGdpChange = Number((((avgGdp - prevAvgGdp) / prevAvgGdp) * 100).toFixed(1));
+        }
+
+        return [
+            {
+                key: "totalGdp",
+                title: isAllSelected ? `Загальний ВВП (${year} vs ${year - 1})` : "Загальний ВВП обраних країн",
+                value: totalGdp,
+                change: totalGdpChange,
+                type: "currency",
+            },
+            {
+                key: "avgGdp",
+                title: isAllSelected ? `Середній ВВП (${year} vs ${year - 1})` : "Середній ВВП на країну",
+                value: avgGdp,
+                change: avgGdpChange,
+                type: "currency",
+            },
+            {
+                key: "count",
+                title: "Кількість підрахованих країн",
+                value: count,
+                change: 0,
+                type: "number",
+            },
+        ];
+    }, [processedCountries, countries.length, prevCountries, year]);
 
     useEffect(() => {
-        if (onKpiUpdate && !loading && !error) {
-            const totalGdp = sortedCountries.reduce((acc, curr) => acc + curr.value, 0);
-            const avgGdp = sortedCountries.length ? totalGdp / sortedCountries.length : 0;
-
-            onKpiUpdate([
-                { id: 1, title: "Загальний ВВП обраних країн", value: totalGdp, change: 2.4, type: "currency" },
-                { id: 2, title: "Середній ВВП на країну", value: avgGdp, change: 1.1, type: "currency" },
-                { id: 3, title: "Кількість підрахованих країн", value: sortedCountries.length, change: 0, type: "number" },
-            ]);
+        if (onKpiUpdate) {
+            onKpiUpdate(kpis);
         }
-    }, [sortedCountries, onKpiUpdate, loading, error]);
+    }, [kpis, onKpiUpdate]);
 
     if (loading) {
         return (
@@ -94,16 +110,28 @@ export default function CountryContainer({ year = 2022, onKpiUpdate }) {
         );
     }
 
+    if (!countries || countries.length === 0) {
+        return (
+            <div className="p-8 bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 text-center col-span-full">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Дані відсутні за обраний рік ({year}).</p>
+            </div>
+        );
+    }
+
     return (
         <div className="p-5 bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm col-span-full">
-            <FilterPanel regions={regions} onFilterChange={handleFilterChange} />
+            <FilterPanel
+                countries={countries}
+                filters={filters}
+                onFilterChange={setFilters}
+            />
 
-            {sortedCountries.length === 0 ? (
+            {processedCountries.length === 0 ? (
                 <div className="p-8 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Країн за вказаними фільтрами не знайдено.</p>
                 </div>
             ) : (
-                <CountryTable countries={sortedCountries} />
+                <CountryTable countries={processedCountries} />
             )}
         </div>
     );
