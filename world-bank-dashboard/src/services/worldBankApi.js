@@ -1,52 +1,67 @@
-import { formatRegionMap, filterValidCountries, normalizeCountryData } from "../utils/dataFormatters";
+import { formatRegionMap, filterValidCountries, normalizeCountryData } from "../utils/dataFormatters.js";
 
 const BASE_URL = "https://api.worldbank.org/v2";
+const PER_PAGE = 500;
 
-async function getRegionMap(signal) {
-    try {
-        const res = await fetch(`${BASE_URL}/country?per_page=400&format=json`, { signal });
-        if (!res.ok) return {};
-        const data = await res.json();
-        return formatRegionMap(data?.[1]);
-    } catch {
-        return {};
-    }
-}
+let regionMapCache = null;
 
-export async function fetchWorldBankData(indicator = "NY.GDP.MKTP.CD", year = 2022, signal) {
-    const regionMap = await getRegionMap(signal);
-
-    const firstUrl = `${BASE_URL}/country/all/indicator/${indicator}?date=${year}&format=json&per_page=500&page=1`;
-    const res = await fetch(firstUrl, { signal });
+async function requestJson(url, signal) {
+    const res = await fetch(url, { signal });
 
     if (!res.ok) {
         throw new Error(`Сервер відповів помилкою: ${res.status} ${res.statusText}`);
     }
 
-    const data = await res.json();
-    const rawList = data?.[1] || [];
-    const meta = data?.[0];
+    const json = await res.json();
 
-    let allItems = [...rawList];
+    const apiMessage = json?.[0]?.message?.[0];
+    if (apiMessage) {
+        throw new Error(`World Bank API: ${apiMessage.value || apiMessage.key || "невідома помилка"}`);
+    }
 
-    if (meta && meta.pages > 1) {
-        const pagePromises = [];
-        for (let page = 2; page <= meta.pages; page++) {
-            const pageUrl = `${BASE_URL}/country/all/indicator/${indicator}?date=${year}&format=json&per_page=500&page=${page}`;
-            pagePromises.push(
-                fetch(pageUrl, { signal }).then((r) => {
-                    if (!r.ok) throw new Error(`Помилка завантаження сторінки ${page}`);
-                    return r.json();
-                })
-            );
-        }
+    return json;
+}
 
-        const pagesData = await Promise.all(pagePromises);
-        pagesData.forEach((pData) => {
-            if (pData?.[1]) allItems = allItems.concat(pData[1]);
+async function getRegionMap(signal) {
+    if (regionMapCache) return regionMapCache;
+
+    try {
+        const json = await requestJson(`${BASE_URL}/country?per_page=400&format=json`, signal);
+        const map = formatRegionMap(json?.[1]);
+        if (Object.keys(map).length > 0) regionMapCache = map;
+        return map;
+    } catch (err) {
+        if (err.name === "AbortError") throw err;
+        return {};
+    }
+}
+
+function buildIndicatorUrl(indicator, year, page) {
+    return (
+        `${BASE_URL}/country/all/indicator/${encodeURIComponent(indicator)}` +
+        `?date=${encodeURIComponent(year)}&format=json&per_page=${PER_PAGE}&page=${page}`
+    );
+}
+
+export async function fetchWorldBankData(indicator = "NY.GDP.MKTP.CD", year = 2022, signal) {
+    const [regionMap, firstPage] = await Promise.all([
+        getRegionMap(signal),
+        requestJson(buildIndicatorUrl(indicator, year, 1), signal),
+    ]);
+
+    const totalPages = firstPage?.[0]?.pages ?? 1;
+    let allItems = firstPage?.[1] || [];
+
+    if (totalPages > 1) {
+        const rest = await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, i) =>
+                requestJson(buildIndicatorUrl(indicator, year, i + 2), signal)
+            )
+        );
+        rest.forEach((page) => {
+            if (page?.[1]) allItems = allItems.concat(page[1]);
         });
     }
 
-    const validCountries = filterValidCountries(allItems);
-    return normalizeCountryData(validCountries, regionMap);
+    return normalizeCountryData(filterValidCountries(allItems), regionMap);
 }
