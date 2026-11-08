@@ -30,9 +30,9 @@ export default function Counter({
     return (
         <div className="p-5 bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-          {title}
-        </span>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {title}
+                </span>
                 <button
                     type="button"
                     onClick={handleReset}
@@ -53,8 +53,8 @@ export default function Counter({
                 </button>
 
                 <span className="text-lg font-bold text-gray-900 dark:text-white">
-          {value}
-        </span>
+                    {value}
+                </span>
 
                 <button
                     type="button"

@@ -1,76 +1,99 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fetchWorldBankData } from "../../services/worldBankApi";
-import CountryControls from "./CountryControls";
+import { useFetch } from "../../hooks/useFetch";
+import { DEFAULT_FILTERS } from "../../constants/filterConstants";
+import FilterPanel from "./FilterPanel";
 import CountryTable from "./CountryTable";
 
-export default function CountryContainer({ year, onKpiUpdate }) {
-    const [countries, setCountries] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
+export default function CountryContainer({ year = 2022, onKpiUpdate }) {
+    const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
-    const [selectedRegion, setSelectedRegion] = useState("Всі");
-    const [sortField, setSortField] = useState("name");
-    const [sortOrder, setSortOrder] = useState("asc");
+    const { data: rawCountries, loading, error } = useFetch(
+        (signal) => fetchWorldBankData("NY.GDP.MKTP.CD", year, signal),
+        [year]
+    );
 
-    useEffect(() => {
-        let isSubscribed = true;
-        setIsLoading(true);
-        setError(null);
+    const { data: rawPrevCountries } = useFetch(
+        (signal) => fetchWorldBankData("NY.GDP.MKTP.CD", year - 1, signal),
+        [year]
+    );
 
-        fetchWorldBankData("NY.GDP.MKTP.CD", year)
-            .then((data) => {
-                if (isSubscribed) {
-                    setCountries(data);
-                    setIsLoading(false);
+    const countries = useMemo(() => rawCountries || [], [rawCountries]);
+    const prevCountries = useMemo(() => rawPrevCountries || [], [rawPrevCountries]);
 
-                    if (data.length > 0 && onKpiUpdate) {
-                        const totalGdp = data.reduce((acc, curr) => acc + curr.value, 0);
-                        const avgGdp = totalGdp / data.length;
+    const processedCountries = useMemo(() => {
+        const query = (filters.searchQuery || "").trim().toLowerCase();
+        const selectedReg = (filters.selectedRegion || DEFAULT_FILTERS.selectedRegion).trim();
 
-                        onKpiUpdate([
-                            { id: 1, title: "Загальний ВВП завантажених країн", value: totalGdp, change: 2.4, type: "currency" },
-                            { id: 2, title: "Середній ВВП на країну", value: avgGdp, change: 1.1, type: "currency" },
-                            { id: 3, title: "Кількість підрахованих країн", value: data.length, change: 0, type: "number" },
-                        ]);
-                    }
-                }
-            })
-            .catch((err) => {
-                if (isSubscribed) {
-                    setError(err.message || "Не вдалося завантажити дані");
-                    setIsLoading(false);
-                }
-            });
+        const filtered = countries.filter((c) => {
+            const matchesSearch = !query || c.name.toLowerCase().includes(query);
+            const matchesRegion = selectedReg === DEFAULT_FILTERS.selectedRegion || c.region === selectedReg;
+            return matchesSearch && matchesRegion;
+        });
 
-        return () => {
-            isSubscribed = false;
-        };
-    }, [year]);
+        return [...filtered].sort((a, b) => {
+            let aVal = a[filters.sortField];
+            let bVal = b[filters.sortField];
 
-    const regions = ["Всі", ...new Set(countries.map((c) => c.region).filter(Boolean))];
+            if (typeof aVal === "string") {
+                const res = aVal.localeCompare(bVal);
+                return filters.sortOrder === "asc" ? res : -res;
+            }
 
-    const filteredCountries =
-        selectedRegion === "Всі"
-            ? countries
-            : countries.filter((c) => c.region === selectedRegion);
+            return filters.sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+        });
+    }, [countries, filters]);
 
-    const sortedCountries = [...filteredCountries].sort((a, b) => {
-        const fieldKey = sortField === "gdp" || sortField === "ВВП" ? "value" : sortField;
+    const kpis = useMemo(() => {
+        const totalGdp = processedCountries.reduce((acc, c) => acc + c.value, 0);
+        const count = processedCountries.length;
+        const avgGdp = count ? totalGdp / count : 0;
 
-        let aVal = a[fieldKey];
-        let bVal = b[fieldKey];
+        const prevTotalGdp = prevCountries.reduce((acc, c) => acc + c.value, 0);
+        const prevAvgGdp = prevCountries.length ? prevTotalGdp / prevCountries.length : 0;
 
-        if (typeof aVal === "string") {
-            const res = aVal.localeCompare(bVal);
-            return sortOrder === "asc" ? res : -res;
+        const isAllSelected = count > 0 && count === countries.length;
+
+        let totalGdpChange = 0;
+        let avgGdpChange = 0;
+
+        if (isAllSelected && prevTotalGdp > 0) {
+            totalGdpChange = Number((((totalGdp - prevTotalGdp) / prevTotalGdp) * 100).toFixed(1));
+            avgGdpChange = Number((((avgGdp - prevAvgGdp) / prevAvgGdp) * 100).toFixed(1));
         }
 
-        if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
-        return 0;
-    });
+        return [
+            {
+                key: "totalGdp",
+                title: isAllSelected ? `Загальний ВВП (${year} vs ${year - 1})` : "Загальний ВВП обраних країн",
+                value: totalGdp,
+                change: totalGdpChange,
+                type: "currency",
+            },
+            {
+                key: "avgGdp",
+                title: isAllSelected ? `Середній ВВП (${year} vs ${year - 1})` : "Середній ВВП на країну",
+                value: avgGdp,
+                change: avgGdpChange,
+                type: "currency",
+            },
+            {
+                key: "count",
+                title: "Кількість підрахованих країн",
+                value: count,
+                change: 0,
+                type: "number",
+            },
+        ];
+    }, [processedCountries, countries.length, prevCountries, year]);
 
-    if (isLoading) {
+    useEffect(() => {
+        if (onKpiUpdate) {
+            onKpiUpdate(kpis);
+        }
+    }, [kpis, onKpiUpdate]);
+
+    if (loading) {
         return (
             <div className="p-8 text-center bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 col-span-full">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent mb-2"></div>
@@ -83,31 +106,33 @@ export default function CountryContainer({ year, onKpiUpdate }) {
         return (
             <div className="p-6 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl col-span-full text-center">
                 <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">⚠️ Помилка завантаження: {error}</p>
-                <p className="text-xs text-rose-500 mt-1">Спробуйте змінити рік або перевірте мережеве з'єднання.</p>
             </div>
         );
     }
 
-    if (countries.length === 0) {
+    if (!countries || countries.length === 0) {
         return (
-            <div className="p-8 text-center bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 col-span-full">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Дані відсутні за вибраний період.</p>
+            <div className="p-8 bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 text-center col-span-full">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Дані відсутні за обраний рік ({year}).</p>
             </div>
         );
     }
 
     return (
         <div className="p-5 bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm col-span-full">
-            <CountryControls
-                regions={regions}
-                selectedRegion={selectedRegion}
-                onRegionChange={setSelectedRegion}
-                sortField={sortField}
-                onSortFieldChange={setSortField}
-                sortOrder={sortOrder}
-                onSortOrderChange={setSortOrder}
+            <FilterPanel
+                countries={countries}
+                filters={filters}
+                onFilterChange={setFilters}
             />
-            <CountryTable countries={sortedCountries} />
+
+            {processedCountries.length === 0 ? (
+                <div className="p-8 text-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Країн за вказаними фільтрами не знайдено.</p>
+                </div>
+            ) : (
+                <CountryTable countries={processedCountries} />
+            )}
         </div>
     );
 }

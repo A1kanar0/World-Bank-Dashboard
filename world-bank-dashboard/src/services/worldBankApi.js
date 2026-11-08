@@ -1,43 +1,52 @@
+import { formatRegionMap, filterValidCountries, normalizeCountryData } from "../utils/dataFormatters";
+
 const BASE_URL = "https://api.worldbank.org/v2";
 
-const AGGREGATE_CODES = new Set([
-    "AFE", "AFW", "ARB", "CEB", "CSS", "EAP", "EAR", "EAS", "ECA", "ECS",
-    "EMU", "EUU", "FCV", "FCS", "HIC", "HPC", "IBD", "IBT", "IDA", "IDB",
-    "IDX", "LAC", "LCN", "LDC", "LIC", "LMC", "LMY", "LTE", "MEA", "MIC",
-    "MNA", "NAC", "OED", "OSS", "PRE", "PSS", "PST", "SAS", "SSA", "SSF",
-    "SST", "TEA", "TEC", "TLA", "TMN", "TSA", "TSS", "UMC", "WLD"
-]);
+async function getRegionMap(signal) {
+    try {
+        const res = await fetch(`${BASE_URL}/country?per_page=400&format=json`, { signal });
+        if (!res.ok) return {};
+        const data = await res.json();
+        return formatRegionMap(data?.[1]);
+    } catch {
+        return {};
+    }
+}
 
-export async function fetchWorldBankData(indicator = "NY.GDP.MKTP.CD", year = 2022) {
-    const response = await fetch(
-        `${BASE_URL}/country/all/indicator/${indicator}?date=${year}&format=json&per_page=500`
-    );
+export async function fetchWorldBankData(indicator = "NY.GDP.MKTP.CD", year = 2022, signal) {
+    const regionMap = await getRegionMap(signal);
 
-    if (!response.ok) {
-        throw new Error(`Помилка API: ${response.status} ${response.statusText}`);
+    const firstUrl = `${BASE_URL}/country/all/indicator/${indicator}?date=${year}&format=json&per_page=500&page=1`;
+    const res = await fetch(firstUrl, { signal });
+
+    if (!res.ok) {
+        throw new Error(`Сервер відповів помилкою: ${res.status} ${res.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await res.json();
+    const rawList = data?.[1] || [];
+    const meta = data?.[0];
 
-    if (!data || !data[1] || !Array.isArray(data[1])) {
-        return [];
+    let allItems = [...rawList];
+
+    if (meta && meta.pages > 1) {
+        const pagePromises = [];
+        for (let page = 2; page <= meta.pages; page++) {
+            const pageUrl = `${BASE_URL}/country/all/indicator/${indicator}?date=${year}&format=json&per_page=500&page=${page}`;
+            pagePromises.push(
+                fetch(pageUrl, { signal }).then((r) => {
+                    if (!r.ok) throw new Error(`Помилка завантаження сторінки ${page}`);
+                    return r.json();
+                })
+            );
+        }
+
+        const pagesData = await Promise.all(pagePromises);
+        pagesData.forEach((pData) => {
+            if (pData?.[1]) allItems = allItems.concat(pData[1]);
+        });
     }
 
-    return data[1]
-        .filter((item) => {
-            if (!item.countryiso3code || item.value === null) return false;
-
-            const code = item.countryiso3code.toUpperCase();
-
-            if (AGGREGATE_CODES.has(code)) return false;
-
-            return true;
-        })
-        .map((item) => ({
-            id: item.countryiso3code,
-            name: item.country?.value || item.country,
-            region: (typeof item.region === "object" ? item.region?.value : item.region) || "Країна",
-            value: item.value,
-            date: item.date,
-        }));
+    const validCountries = filterValidCountries(allItems);
+    return normalizeCountryData(validCountries, regionMap);
 }
