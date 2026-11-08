@@ -1,32 +1,37 @@
 import { useState, useEffect } from "react";
 
+/**
+ * Універсальний хук завантаження даних.
+ *
+ * @param {(signal: AbortSignal) => Promise<any>} fetchCallback - функція запиту; має приймати signal
+ * @param {any[]} deps - залежності запиту (лише примітиви: рядки, числа, булеві)
+ * @returns {{ data: any, loading: boolean, error: string | null }}
+ */
 export function useFetch(fetchCallback, deps = []) {
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [state, setState] = useState({ data: null, loading: true, error: null });
 
     useEffect(() => {
         const controller = new AbortController();
 
-        setLoading(true);
-        setError(null);
+        setState((prev) => ({ ...prev, loading: true, error: null }));
 
-        fetchCallback(controller.signal)
+        Promise.resolve()
+            .then(() => fetchCallback(controller.signal))
             .then((result) => {
-                setData(result);
-                setLoading(false);
+                if (controller.signal.aborted) return;
+                setState({ data: result, loading: false, error: null });
             })
             .catch((err) => {
-                if (err.name !== "AbortError") {
-                    setError(err.message || "Невідома помилка мережі");
-                    setLoading(false);
-                }
+                if (controller.signal.aborted || err?.name === "AbortError") return;
+                setState((prev) => ({
+                    ...prev,
+                    loading: false,
+                    error: err?.message || "Невідома помилка мережі",
+                }));
             });
 
-        return () => {
-            controller.abort();
-        };
+        return () => controller.abort();
     }, deps);
 
-    return { data, loading, error };
+    return state;
 }
