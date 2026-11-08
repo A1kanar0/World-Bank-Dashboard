@@ -1,17 +1,21 @@
 import { useState } from "react";
 
 export default function Counter({
-                                    title = "Лічильник",
-                                    initialValue = 1,
-                                    min = 0,
-                                    max = 100,
-                                    step = 1,
-                                    onChange,
-                                }) {
-    const [value, setValue] = useState(initialValue);
+    title = "Лічильник",
+    value: controlledValue,
+    initialValue = 1,
+    min = 0,
+    max = 100,
+    step = 1,
+    onChange,
+}) {
+    const [internalValue, setInternalValue] = useState(initialValue);
+
+    const isControlled = controlledValue !== undefined;
+    const value = isControlled ? controlledValue : internalValue;
 
     const updateValue = (newValue) => {
-        setValue(newValue);
+        if (!isControlled) setInternalValue(newValue);
         if (onChange) onChange(newValue);
     };
 

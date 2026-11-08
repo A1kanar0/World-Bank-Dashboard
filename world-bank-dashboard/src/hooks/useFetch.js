@@ -18,7 +18,7 @@ export function useFetch(fetchCallback, deps = []) {
         Promise.resolve()
             .then(() => fetchCallback(controller.signal))
             .then((result) => {
-                if (controller.signal.aborted) return;
+                if (controller.signal.aborted) return; // застаріла відповідь
                 setState({ data: result, loading: false, error: null });
             })
             .catch((err) => {

@@ -1,6 +1,11 @@
+import { Link, useNavigate } from "react-router";
 import { formatGdp } from "../../utils/formatters";
 
 export default function CountryTable({ countries }) {
+    const navigate = useNavigate();
+
+    const detailsPath = (country) => `/country/${country.id}?year=${country.date}`;
+
     return (
         <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-gray-600 dark:text-gray-300">
@@ -16,13 +21,24 @@ export default function CountryTable({ countries }) {
                 {countries.map((country) => (
                     <tr
                         key={country.id}
-                        className="hover:bg-gray-50 dark:hover:bg-[#161927] transition-colors"
+                        tabIndex={0}
+                        onClick={() => navigate(detailsPath(country))}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") navigate(detailsPath(country));
+                        }}
+                        className="hover:bg-gray-50 dark:hover:bg-[#161927] transition-colors cursor-pointer focus:outline-none focus-visible:bg-gray-50 dark:focus-visible:bg-[#161927]"
                     >
                         <td className="py-3 px-2 font-mono font-semibold text-indigo-600 dark:text-indigo-400">
                             {country.id}
                         </td>
                         <td className="py-3 px-2 font-semibold text-gray-900 dark:text-white">
-                            {country.name}
+                            <Link
+                                to={detailsPath(country)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:underline"
+                            >
+                                {country.name}
+                            </Link>
                         </td>
                         <td className="py-3 px-2 text-gray-500 dark:text-gray-400">
                             {country.date}

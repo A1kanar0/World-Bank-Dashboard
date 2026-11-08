@@ -1,15 +1,21 @@
 import { useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { useDebounce } from "../../hooks/useDebounce";
+import { Controller, useForm } from "react-hook-form";
+import { useFilters } from "../../hooks/useFilters";
 import { DEFAULT_FILTERS } from "../../constants/filterConstants";
 
-export default function FilterPanel({ countries = [], filters = DEFAULT_FILTERS, onFilterChange }) {
-    const { register, watch, reset } = useForm({
-        defaultValues: filters,
-    });
+const LABEL_CLS = "block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1";
+const CONTROL_CLS =
+    "w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
-    const formValues = watch();
-    const debouncedSearchQuery = useDebounce(formValues.searchQuery, 400);
+export default function FilterPanel({ countries = [] }) {
+    const { filters, setFilters, resetFilters } = useFilters();
+
+    const { control, watch, reset } = useForm({ defaultValues: filters });
+
+    useEffect(() => {
+        const subscription = watch((values) => setFilters({ ...DEFAULT_FILTERS, ...values }));
+        return () => subscription.unsubscribe();
+    }, [watch, setFilters]);
 
     const regions = useMemo(() => {
         const uniqueRegions = Array.from(
@@ -23,76 +29,73 @@ export default function FilterPanel({ countries = [], filters = DEFAULT_FILTERS,
         return [DEFAULT_FILTERS.selectedRegion, ...uniqueRegions];
     }, [countries]);
 
-    useEffect(() => {
-        if (!onFilterChange) return;
-
-        onFilterChange((prev) => ({
-            ...prev,
-            ...formValues,
-            searchQuery: debouncedSearchQuery,
-        }));
-    }, [debouncedSearchQuery, formValues.selectedRegion, formValues.sortField, formValues.sortOrder, onFilterChange]);
-
     const handleReset = () => {
         reset(DEFAULT_FILTERS);
-        if (onFilterChange) onFilterChange(DEFAULT_FILTERS);
+        resetFilters();
     };
 
     return (
         <div className="p-4 bg-gray-50 dark:bg-[#121522] rounded-xl border border-gray-200 dark:border-gray-800 mb-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex-1 min-w-[200px]">
-                    <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
-                        Пошук за назвою
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="Введіть назву країни..."
-                        {...register("searchQuery")}
-                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    <label className={LABEL_CLS}>Пошук за назвою</label>
+                    <Controller
+                        name="searchQuery"
+                        control={control}
+                        render={({ field }) => (
+                            <input
+                                type="text"
+                                placeholder="Введіть назву країни..."
+                                {...field}
+                                className={CONTROL_CLS}
+                            />
+                        )}
                     />
                 </div>
 
                 <div className="min-w-[180px]">
-                    <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
-                        Регіон
-                    </label>
-                    <select
-                        {...register("selectedRegion")}
-                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                    >
-                        {regions.map((region) => (
-                            <option key={region} value={region}>
-                                {region}
-                            </option>
-                        ))}
-                    </select>
+                    <label className={LABEL_CLS}>Регіон</label>
+                    <Controller
+                        name="selectedRegion"
+                        control={control}
+                        render={({ field }) => (
+                            <select {...field} className={`${CONTROL_CLS} cursor-pointer`}>
+                                {regions.map((region) => (
+                                    <option key={region} value={region}>
+                                        {region}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                    />
                 </div>
 
                 <div className="min-w-[150px]">
-                    <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
-                        Сортувати за
-                    </label>
-                    <select
-                        {...register("sortField")}
-                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                    >
-                        <option value="name">Назва країни</option>
-                        <option value="value">ВВП USD</option>
-                    </select>
+                    <label className={LABEL_CLS}>Сортувати за</label>
+                    <Controller
+                        name="sortField"
+                        control={control}
+                        render={({ field }) => (
+                            <select {...field} className={`${CONTROL_CLS} cursor-pointer`}>
+                                <option value="name">Назва країни</option>
+                                <option value="value">ВВП USD</option>
+                            </select>
+                        )}
+                    />
                 </div>
 
                 <div className="min-w-[130px]">
-                    <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1">
-                        Напрямок
-                    </label>
-                    <select
-                        {...register("sortOrder")}
-                        className="w-full p-2 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1E2235] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                    >
-                        <option value="asc">⬆️ За зростанням</option>
-                        <option value="desc">⬇️ За спаданням</option>
-                    </select>
+                    <label className={LABEL_CLS}>Напрямок</label>
+                    <Controller
+                        name="sortOrder"
+                        control={control}
+                        render={({ field }) => (
+                            <select {...field} className={`${CONTROL_CLS} cursor-pointer`}>
+                                <option value="asc">⬆️ За зростанням</option>
+                                <option value="desc">⬇️ За спаданням</option>
+                            </select>
+                        )}
+                    />
                 </div>
 
                 <div className="self-end">

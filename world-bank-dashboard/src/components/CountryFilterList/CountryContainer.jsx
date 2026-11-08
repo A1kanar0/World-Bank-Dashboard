@@ -1,19 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { fetchWorldBankData } from "../../services/worldBankApi";
 import { useFetch } from "../../hooks/useFetch";
+import { useFilters } from "../../hooks/useFilters";
 import { DEFAULT_FILTERS } from "../../constants/filterConstants";
 import FilterPanel from "./FilterPanel";
 import CountryTable from "./CountryTable";
 
-export default function CountryContainer({ year = 2022, onKpiUpdate }) {
-    const [filters, setFilters] = useState(DEFAULT_FILTERS);
+export default function CountryContainer({ onKpiUpdate }) {
+    const { debouncedFilters: filters, year } = useFilters();
 
     const { data: rawCountries, loading, error } = useFetch(
         (signal) => fetchWorldBankData("NY.GDP.MKTP.CD", year, signal),
         [year]
     );
 
-    const { data: rawPrevCountries } = useFetch(
+    const { data: rawPrevCountries, error: prevError } = useFetch(
         (signal) => fetchWorldBankData("NY.GDP.MKTP.CD", year - 1, signal),
         [year]
     );
@@ -32,8 +33,8 @@ export default function CountryContainer({ year = 2022, onKpiUpdate }) {
         });
 
         return [...filtered].sort((a, b) => {
-            let aVal = a[filters.sortField];
-            let bVal = b[filters.sortField];
+            const aVal = a[filters.sortField];
+            const bVal = b[filters.sortField];
 
             if (typeof aVal === "string") {
                 const res = aVal.localeCompare(bVal);
@@ -93,46 +94,48 @@ export default function CountryContainer({ year = 2022, onKpiUpdate }) {
         }
     }, [kpis, onKpiUpdate]);
 
+    let content;
+
     if (loading) {
-        return (
-            <div className="p-8 text-center bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 col-span-full">
+        content = (
+            <div className="p-8 text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent mb-2"></div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Завантаження даних World Bank API...</p>
             </div>
         );
-    }
-
-    if (error) {
-        return (
-            <div className="p-6 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl col-span-full text-center">
+    } else if (error) {
+        content = (
+            <div className="p-6 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl text-center">
                 <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">⚠️ Помилка завантаження: {error}</p>
             </div>
         );
-    }
-
-    if (!countries || countries.length === 0) {
-        return (
-            <div className="p-8 bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 text-center col-span-full">
+    } else if (countries.length === 0) {
+        content = (
+            <div className="p-8 text-center">
                 <p className="text-sm text-gray-500 dark:text-gray-400">Дані відсутні за обраний рік ({year}).</p>
             </div>
         );
+    } else if (processedCountries.length === 0) {
+        content = (
+            <div className="p-8 text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Країн за вказаними фільтрами не знайдено.</p>
+            </div>
+        );
+    } else {
+        content = <CountryTable countries={processedCountries} />;
     }
 
     return (
         <div className="p-5 bg-white dark:bg-[#1E2235] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm col-span-full">
-            <FilterPanel
-                countries={countries}
-                filters={filters}
-                onFilterChange={setFilters}
-            />
+            <FilterPanel countries={countries} />
 
-            {processedCountries.length === 0 ? (
-                <div className="p-8 text-center">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Країн за вказаними фільтрами не знайдено.</p>
-                </div>
-            ) : (
-                <CountryTable countries={processedCountries} />
+            {prevError && (
+                <p className="mb-4 text-xs text-amber-600 dark:text-amber-400">
+                    Не вдалося завантажити дані за {year - 1}: порівняння з минулим роком недоступне.
+                </p>
             )}
+
+            {content}
         </div>
     );
 }
